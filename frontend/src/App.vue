@@ -1,17 +1,14 @@
 <script setup>
-
-import ServerDashboard from "@/components/ServerDashboard.vue";
+import {initialLoad} from "@/main.js";
+import Header from "@/components/Header.vue";
 </script>
 
 <template>
-  <div class="wrapper">
-<ServerDashboard></ServerDashboard>
-  </div>
+  <Header></Header>
+  <router-view v-if="initialLoad">
+  </router-view>
 </template>
 
 <style scoped>
-.wrapper {
-  margin: 20px;
-}
 
 </style>

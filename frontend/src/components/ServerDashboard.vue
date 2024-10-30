@@ -1,37 +1,70 @@
 <script setup>
+import {computed, nextTick, onMounted, reactive, ref, watch} from "vue";
+import ServerStatus from "@/components/ServerStatus.vue";
+import {servers} from "@/main.js";
 
+const props = defineProps({
+  serverId: {
+    required: true,
+  }
+});
+
+const contentHolder = ref();
+const content = servers[props.serverId].log;
+const history = reactive([""]);
+let positionInHistory = ref(0);
+const command = computed({
+  get: () => history[positionInHistory.value],
+  set: value => history[positionInHistory.value] = value
+});
+
+async function sendCommand(event) {
+  if (!event.shiftKey && command.value !== "") {
+    await fetch(`/api/servers/${props.serverId}/command`, {
+      method: "POST",
+      body: JSON.stringify({
+        command: command.value,
+      })
+    });
+
+    if (history[history.length - 2] === command.value) {
+      history[history.length - 1] = "";
+    } else {
+      history.push("");
+      positionInHistory.value = history.length - 1;
+    } // TODO improve with dropdown maybe
+  }
+}
+
+function moveInHistory(delta) {
+  const newValue = positionInHistory.value + delta;
+  positionInHistory.value = Math.min(history.length - 1, Math.max(newValue, 0));
+}
+
+watch(content, value => {
+  const scrollToBottom = (contentHolder.value.scrollHeight - contentHolder.value.clientHeight) - contentHolder.value.scrollTop < 3;
+  if (scrollToBottom) {
+    nextTick(() => {
+      contentHolder.value.scrollTop = contentHolder.value.scrollHeight - contentHolder.value.clientHeight;
+    });
+  }
+});
+
+onMounted(() => {
+  contentHolder.value.scrollTop = contentHolder.value.scrollHeight - contentHolder.value.clientHeight;
+});
 </script>
 
 <template>
+  <ServerStatus :server-id="serverId" :controls="true"></ServerStatus>
   <div class="console">
-    <a class="content">penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-    <br>penis
-
-
+    <a ref="contentHolder" class="content">
+      {{ servers[props.serverId].log.map(l => l.content).join("\n") }}
     </a>
     <div class="input-wrapper">
       <a>$ </a>
-      <input>
+      <input v-model.trim="command" @keydown.enter="sendCommand($event)" @keydown.up.prevent="moveInHistory(-1)"
+             @keydown.down="moveInHistory(1)">
     </div>
   </div>
 </template>
@@ -53,6 +86,9 @@
   margin-bottom: 10px;
   flex-grow: 1;
   overflow: scroll;
+  white-space: pre;
+  background: var(--color-background-soft);
+  border-radius: 15px;
 }
 
 .console .input-wrapper {
@@ -73,5 +109,6 @@
   font-family: "JetBrains Mono", serif;
   padding-left: 10px;
   font-size: 15px;
+  outline: none;
 }
 </style>

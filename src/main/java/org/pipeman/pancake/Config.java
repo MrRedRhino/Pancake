@@ -52,8 +52,7 @@ public class Config {
     }
 
     public static String mcServerStartCommand() {
-//        return yamlFile.getString("minecraft-server.start-command");
-        return "/bin/bash --login";
+        return yamlFile.getString("minecraft-server.start-command");
     }
 
     public static int mcServerConsoleHistoryMaxLines() {
