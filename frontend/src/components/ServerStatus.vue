@@ -1,7 +1,10 @@
 <script setup>
 import {servers} from "@/main.js";
 import {computed, onUnmounted, ref} from "vue";
+import {useConfirm} from "primevue";
+import RelativeTimestamp from "@/components/RelativeTimestamp.vue";
 
+const confirm = useConfirm();
 const props = defineProps({
   serverId: {
     required: true
@@ -16,6 +19,14 @@ const status = computed({
   get: () => servers[props.serverId].state,
   set: value => servers[props.serverId].state = value
 });
+const runningOrStopping = computed(() => {
+  const s = status.value;
+  return s === 'running' || s === 'stopping';
+});
+const transitioning = computed(() => {
+  const s = status.value;
+  return s === 'starting' || s === 'stopping';
+})
 
 const empty = ref(false);
 
@@ -24,7 +35,7 @@ const interval = setInterval(() => {
 }, 800);
 
 async function terminate() {
-  const response = await fetch("/api/servers/1/terminate", {
+  const response = await fetch(`/api/servers/${props.serverId}/terminate`, {
     method: "POST"
   });
   if (response.ok) {
@@ -34,14 +45,14 @@ async function terminate() {
 
 async function startStop() {
   if (status.value === "stopped") {
-    const response = await fetch("/api/servers/1/start", {
+    const response = await fetch(`/api/servers/${props.serverId}/start`, {
       method: "POST"
     });
     if (response.ok) {
       status.value = "starting";
     }
   } else if (status.value === "running") {
-    const response = await fetch("/api/servers/1/stop", {
+    const response = await fetch(`/api/servers/${props.serverId}/stop`, {
       method: "POST"
     });
     if (response.ok) {
@@ -50,21 +61,48 @@ async function startStop() {
   }
 }
 
+function confirmTerminate() {
+  confirm.require({
+    message: "Are you sure you want to kill this server?",
+    header: "Kill this server?",
+    acceptProps: {
+      label: "Kill",
+      severity: "danger"
+    },
+    rejectProps: {
+      label: "Cancel",
+      severity: "secondary"
+    },
+    accept: terminate
+  });
+}
+
 onUnmounted(() => clearInterval(interval));
 </script>
 
 <template>
+  <ConfirmDialog></ConfirmDialog>
   <div class="wrapper">
     <div class="status-display"
          :class="[status === 'running' || status === 'stopped' ? status : empty ? 'empty' : status]">
     </div>
     <a>{{ status }}</a>
     <template v-if="props.controls">
-      <button :disabled="status === 'starting' || status === 'stopping'" @click="startStop">
-        {{ status === 'running' || status === 'stopping' ? 'Stop' : 'Start' }}
-      </button>
-      <button v-if="status !== 'stopped'" @click="terminate">Kill</button>
+      <ButtonGroup>
+        <Button :disabled="transitioning"
+                :icon="`pi pi-${runningOrStopping ? 'stop' : 'play'}`"
+                :label="runningOrStopping ? 'Stop' : 'Start'"
+                :severity="runningOrStopping ? 'danger' : 'success'"
+                size="small"
+                @click="startStop"
+        />
+
+        <Button v-if="status !== 'stopped'" @click="confirmTerminate" size="small" severity="secondary">Kill</Button>
+      </ButtonGroup>
     </template>
+    <h1 v-if="status === 'running'"><i class="pi pi-clock"></i>
+      <RelativeTimestamp :date="new Date(+servers[props.serverId].startedAt)"/>
+    </h1>
   </div>
 </template>
 
@@ -85,14 +123,14 @@ onUnmounted(() => clearInterval(interval));
 }
 
 .running, .starting {
-  background: var(--color-green);
+  background: var(--p-green-500);
 }
 
 .stopped, .stopping {
-  background: var(--color-red);
+  background: var(--p-red-500);
 }
 
 .empty {
-  background: var(--color-background-soft);
+  background: var(--p-surface-800);
 }
 </style>

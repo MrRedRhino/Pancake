@@ -1,42 +1,59 @@
 <script setup>
 import {header, showBackButton, tabs} from "../header.js";
 import IconButton from "@/components/IconButton.vue";
+import {TabList} from "primevue";
+import {ref} from "vue";
+import {account, logout} from "@/main.js";
+
+const accountMenu = ref();
+const accountMenuItems = ref([
+  {
+    label: account.value.name,
+    items: [
+      {
+        separator: true,
+      },
+      {
+        label: "Settings",
+        icon: "pi pi-cog"
+      },
+      {
+        label: "Logout",
+        class: "text-red-500",
+        icon: "pi pi-sign-out",
+        command: logout
+      }
+    ]
+  }
+]);
 </script>
 
 <template>
-  <div class="header">
-    <div class="wrapper">
-      <IconButton @click="$router.push('/')" v-if="showBackButton" icon="back"></IconButton>
-      <h1>{{ header }}</h1>
+  <Menu ref="accountMenu" :model="accountMenuItems" :popup="true">
+  </Menu>
 
+  <div>
+    <div class="flex items-center p-2 bg-surface-900">
+      <IconButton @click="$router.push('/')" v-if="showBackButton" icon="back"></IconButton>
+      <h1 class="text-3xl">{{ header }}</h1>
+
+      <Avatar class="ml-auto cursor-pointer" shape="circle" :label="account.name.charAt(0).toUpperCase()"
+              @click="accountMenu.show($event)"></Avatar>
     </div>
-    <div class="tabs">
-      <router-link :to="tab.route" v-for="tab in tabs">
-        {{ tab.title }}
-      </router-link>
-    </div>
+
+    <Tabs :value="$route.name" v-if="tabs.length > 0" scrollable>
+      <TabList>
+        <router-link v-for="tab in tabs" v-slot="{ href, navigate }" :to="tab.route">
+          <Tab :value="tab.route.name">
+            <a :href="href" @click="navigate">
+              <span>{{ tab.title }}</span>
+            </a>
+          </Tab>
+        </router-link>
+      </TabList>
+    </Tabs>
   </div>
 </template>
 
 <style scoped>
-.header {
-  margin-bottom: 8px;
-}
-
-.wrapper {
-  display: flex;
-  background: var(--color-background-mute);
-  align-items: center;
-}
-
-.tabs {
-  display: flex;
-  gap: 10px;
-  font-size: 20px;
-  background: var(--color-background-mute);
-}
-
-.tabs a.router-link-exact-active {
-  border-bottom: var(--vt-c-indigo) 3px solid;
-}
 </style>

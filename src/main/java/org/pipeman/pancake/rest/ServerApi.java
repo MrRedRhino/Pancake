@@ -1,17 +1,21 @@
 package org.pipeman.pancake.rest;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.javalin.http.Context;
+import org.pipeman.pancake.Main;
 import org.pipeman.pancake.MinecraftServer;
 import org.pipeman.pancake.ServerManager;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 public class ServerApi {
     public static void getServers(Context ctx) {
         List<Server> servers = new ArrayList<>();
-        for (MinecraftServer server : ServerManager.getServers()) {
-            servers.add(new Server(server.id(), "Server", server.state()));
+        for (ServerManager.ServerData server : ServerManager.getServers()) {
+            servers.add(new Server(server.id(), server.name(), server.modPlatformPriorities(), server.showPluginFolder(), server.showModsFolder(), server.showDatapacksFolder()));
         }
         ctx.json(servers);
     }
@@ -36,21 +40,43 @@ public class ServerApi {
 
     public static void sendCommand(Context ctx) {
         long serverId = ctx.pathParamAsClass("server-id", Long.class).get();
-        SendCommandPayload payload = ctx.bodyAsClass(SendCommandPayload.class);
+        SendCommandPayload payload = ctx.bodyValidator(SendCommandPayload.class)
+                .check(p -> !p.command().isBlank(), "Command empty")
+                .get();
 
         ServerManager.getServerById(serverId).sendCommand(payload.command());
     }
 
-    public static void getLogHistory(Context ctx) {
-        long serverId = ctx.pathParamAsClass("server-id", Long.class).get();
-        int startLine = ctx.queryParamAsClass("before-line", Integer.class).get();
-
-        ServerManager.getServerById(serverId);
+    private record SendCommandPayload(@JsonProperty(required = true) String command) {
     }
 
-    private record SendCommandPayload(String command) {
+    public static void importServer(Context ctx) {
+        long id = Main.generateNewId();
+        ImportServerBody body = ctx.bodyAsClass(ImportServerBody.class);
+        ServerManager.addServer(new ServerManager.ServerData(id, body.name(), body.path(), body.startCommand(), List.of(), true, true, true)); // TODO adapt server software
+        ctx.json(Map.of("id", id));
     }
 
-    private record Server(long id, String name, MinecraftServer.State state) {
+    private record Server(long id, String name, MinecraftServer.State state, long startedAt,
+                          List<String> modPlatformPriorities, boolean showPluginFolder, boolean showModsFolder,
+                          boolean showDatapacksFolder) {
+        public Server(long id, String name, List<String> modPlatformPriorities, boolean showPluginFolder, boolean showModsFolder, boolean showDatapacksFolder) {
+            this(id, name, ServerManager.optServerById(id), modPlatformPriorities, showPluginFolder, showModsFolder, showDatapacksFolder);
+        }
+
+        public Server(long id, String name, Optional<MinecraftServer> server, List<String> modPlatformPriorities, boolean showPluginFolder, boolean showModsFolder, boolean showDatapacksFolder) {
+            this(id,
+                    name,
+                    server.map(MinecraftServer::state).orElse(MinecraftServer.State.STOPPED),
+                    server.map(MinecraftServer::startedAt).orElse(0L),
+                    modPlatformPriorities,
+                    showPluginFolder,
+                    showModsFolder,
+                    showDatapacksFolder
+            );
+        }
+    }
+
+    private record ImportServerBody(String name, String path, String startCommand) {
     }
 }

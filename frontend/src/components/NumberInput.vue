@@ -15,7 +15,7 @@ const value = ref();
 const model = defineModel();
 value.value = model.value;
 
-watch(value, newValue => {
+watch(model, newValue => {
   const trimmed = newValue.toString().trim();
   if (trimmed.length < 1) {
     model.value = props.whenEmpty;
@@ -29,7 +29,7 @@ watch(value, newValue => {
 </script>
 
 <template>
-  <input v-model="value" type="number" :min="props.min">
+  <input v-model="model" type="number" :min="props.min">
 </template>
 
 <style scoped>

@@ -20,10 +20,10 @@ public class Config {
         yamlFile.addDefault("webserver.host", "0.0.0.0");
 
         yamlFile.createSection("minecraft-server");
-        yamlFile.addDefault("minecraft-server.directory", "mc-server");
-        yamlFile.addDefault("minecraft-server.start-command", "java -jar paper-1.21.1-120.jar nogui");
-
         yamlFile.addDefault("minecraft-server.console-history.max-lines", 5);
+
+        yamlFile.createSection("mod-platforms");
+        yamlFile.addDefault("mod-platforms.curseforge.api-key", "");
 
         try {
             yamlFile.createOrLoadWithComments(); // Loads the entire file
@@ -39,20 +39,16 @@ public class Config {
         }
     }
 
+    public static String curseforgeApiKey() {
+        return yamlFile.getString("mod-platforms.curseforge.api-key");
+    }
+
     public static int serverPort() {
         return yamlFile.getInt("webserver.port");
     }
 
     public static String serverHost() {
         return yamlFile.getString("webserver.host");
-    }
-
-    public static String mcServerDirectory() {
-        return yamlFile.getString("minecraft-server.directory");
-    }
-
-    public static String mcServerStartCommand() {
-        return yamlFile.getString("minecraft-server.start-command");
     }
 
     public static int mcServerConsoleHistoryMaxLines() {

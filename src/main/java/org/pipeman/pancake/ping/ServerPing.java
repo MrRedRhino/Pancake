@@ -15,7 +15,7 @@ import java.util.List;
 public class ServerPing {
     private static final Logger LOGGER = LoggerFactory.getLogger(ServerPing.class);
 
-    public static PingResponse pingServer(String address, int port) {
+    public static PingResponse pingServer(String address, int port) throws IOException {
         try (Socket socket = new Socket(address, port)) {
             OutputStream socketOS = socket.getOutputStream();
 
@@ -37,10 +37,7 @@ public class ServerPing {
             JSONObject data = new JSONObject(new String(in.readNBytes(ByteUtils.readVarInt(in))));
 
             return PingResponse.of(data);
-        } catch (Exception e) {
-             LOGGER.error("Failed to ping server", e);
         }
-        return null;
     }
 
     public record PingResponse(int maxPlayers, int playerCount, List<String> playerNames) {

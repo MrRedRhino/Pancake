@@ -2,7 +2,7 @@ package org.pipeman.pancake;
 
 import com.pty4j.PtyProcess;
 import com.pty4j.PtyProcessBuilder;
-import org.pipeman.pancake.WebSocketServer.AppendLogEventData;
+import org.pipeman.pancake.WebSocketServer.ServerLaunchedEventData;
 import org.pipeman.pancake.WebSocketServer.ServerStateChangedEventData;
 import org.pipeman.pancake.ping.ServerPing;
 import org.slf4j.Logger;
@@ -12,8 +12,13 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class MinecraftServer {
     private static final Logger LOGGER = LoggerFactory.getLogger(MinecraftServer.class);
@@ -23,10 +28,11 @@ public class MinecraftServer {
     private final String startCommand;
     private final ScheduledExecutorService executorService;
     private State state = State.STOPPED;
+    private long startedAt;
 
-    private final Queue<String> terminalHistory = new LinkedList<>();
+    private final Queue<ConsoleLine> terminalHistory = new LinkedList<>();
+    private final AtomicInteger lineNumber = new AtomicInteger();
     private StringBuilder currentLine = new StringBuilder();
-    private int lineNumber = 0;
 
     private PtyProcess process;
     private ScheduledFuture<?> pingTask;
@@ -59,17 +65,19 @@ public class MinecraftServer {
                 stopFuture.complete(null);
                 LOGGER.info("Server stopped. Exit code: {}", exitValue);
             });
+            WebSocketServer.broadcast(new ServerLaunchedEventData(id));
             new Thread(() -> handleConsoleInput(ptyProcess), "Console Reader").start();
 
 //            ptyProcess.outputWriter().write(startCommand + "\n");
 //            ptyProcess.outputWriter().flush();
 
             setState(State.STARTING);
+            startedAt = System.currentTimeMillis();
             this.process = ptyProcess;
 
             currentLine = new StringBuilder();
             terminalHistory.clear();
-            lineNumber = 0;
+            lineNumber.set(0);
 
             pingTask = executorService.scheduleWithFixedDelay(this::pingServer, 3, 3, TimeUnit.SECONDS);
         } catch (IOException e) {
@@ -78,9 +86,10 @@ public class MinecraftServer {
     }
 
     private void pingServer() {
-        ServerPing.PingResponse pingResponse = ServerPing.pingServer("localhost", 25565);// TODO dynamically
-        if (pingResponse != null) {
+        try {
+            ServerPing.pingServer("localhost", 25565);// TODO dynamically
             setState(State.RUNNING);
+        } catch (Exception ignored) {
         }
     }
 
@@ -129,6 +138,19 @@ public class MinecraftServer {
         }
     }
 
+    public List<ConsoleLine> getConsoleHistory(int lineNumber, int count) {
+        List<ConsoleLine> history = List.copyOf(terminalHistory);
+        int start = history.size() - (history.getLast().lineNumber() - lineNumber);
+        int end = Math.min(start + count, terminalHistory.size());
+        return history.subList(start, end);
+    }
+
+    public List<ConsoleLine> getConsoleLastNLines(int n) {
+        List<ConsoleLine> history = List.copyOf(terminalHistory);
+        int start = Math.max(0, history.size() - n);
+        return history.subList(start, history.size());
+    }
+
     public Writer outputWriter() {
         return process.outputWriter();
     }
@@ -147,8 +169,9 @@ public class MinecraftServer {
             while (process.isAlive()) {
                 int read = process.inputReader().read();
                 if (read == '\n') {
-                    terminalHistory.add(currentLine.toString());
-                    WebSocketServer.broadcast(new AppendLogEventData(id, currentLine.toString(), lineNumber++));
+                    int thisLineNumber = lineNumber.getAndIncrement();
+                    terminalHistory.add(new ConsoleLine(currentLine.toString(), thisLineNumber));
+                    WebSocketServer.broadcastToSubscribers(new WebSocketServer.UpsertConsoleLineEventData(id, currentLine.toString(), thisLineNumber));
 
                     currentLine = new StringBuilder();
                     while (terminalHistory.size() > Config.mcServerConsoleHistoryMaxLines()) {
@@ -161,6 +184,13 @@ public class MinecraftServer {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public long startedAt() {
+        return startedAt;
+    }
+
+    public record ConsoleLine(String content, int lineNumber) {
     }
 
     public State state() {

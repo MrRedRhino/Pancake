@@ -1,17 +1,22 @@
 <script setup>
 import {useRoute} from "vue-router";
-import IconButton from "@/components/IconButton.vue";
 import JobListEntry from "@/components/JobListEntry.vue";
+import {ref} from "vue";
 
 const serverId = useRoute().params.serverId;
-const job = {
-  name: "Daily restart",
-  tasks: []
-};
+const jobs = ref();
+
+fetch(`/api/servers/${serverId}/jobs`).then(res => res.json()).then(json => {
+  jobs.value = [];
+  for (let job of json) {
+    job.serverId = serverId;
+    jobs.value.push(job);
+  }
+});
 </script>
 
 <template>
-  <JobListEntry :job="job"></JobListEntry>
+  <JobListEntry v-for="job in jobs" :job="job"></JobListEntry>
 </template>
 
 <style scoped>
