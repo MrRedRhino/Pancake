@@ -21,7 +21,7 @@ public class Database {
         JDBI.registerRowMapper(ConstructorMapper.factory(ServerManager.ServerData.class));
         JDBI.registerRowMapper(ConstructorMapper.factory(UserApi.User.class));
         JDBI.registerRowMapper(ConstructorMapper.factory(UserApi.UserIdHashSnapshot.class));
-        JDBI.registerRowMapper(ConstructorMapper.factory(AddonManager.CachedAddonData.class));
+        JDBI.registerRowMapper(ConstructorMapper.factory(AddonManager.AddonMeta.class));
 
         try (InputStream stream = Main.class.getResourceAsStream("/setup.sql")) {
             String setupScript = new String(Objects.requireNonNull(stream).readAllBytes());

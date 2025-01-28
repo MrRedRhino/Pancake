@@ -9,6 +9,7 @@ public class CurseforgeFingerprint {
         return ((a & 0xffff) * b) + ((((a >>> 16) * b) & 0xffff) << 16);
     }
 
+    // TODO use a stream instead of byte[]
     public static long computeHash(byte[] data) {
         int len = data.length;
         final int magic1 = 0x5bd1e995;

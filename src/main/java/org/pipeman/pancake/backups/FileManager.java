@@ -68,7 +68,7 @@ public class FileManager {
             Path path = Path.of(config.getString("path"), String.valueOf(id));
 
             String hash;
-            try (HashingOutputStream os = new HashingOutputStream(Files.newOutputStream(path))) {
+            try (HashingOutputStream os = new HashingOutputStream(Files.newOutputStream(path), "SHA-256")) {
                 data.transferTo(os);
                 hash = os.digestHex();
             }

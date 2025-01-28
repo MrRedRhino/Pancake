@@ -74,6 +74,8 @@ public class Main {
                                     post("enable", ctx -> FilesApi.setEnabled(ctx, true));
                                     post("disable", ctx -> FilesApi.setEnabled(ctx, false));
                                 });
+
+                                post("upload", FilesApi::uploadAddon);
                             });
 
                             path("files", () -> {

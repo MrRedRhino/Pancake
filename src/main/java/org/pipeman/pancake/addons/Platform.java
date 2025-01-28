@@ -2,7 +2,9 @@ package org.pipeman.pancake.addons;
 
 import org.pipeman.pancake.loaders.Loader;
 
+import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -11,15 +13,19 @@ import java.util.Map;
 import java.util.Set;
 
 public interface Platform {
-    HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
+    HttpClient HTTP_CLIENT = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
 
-    List<ModVersionInfo> search(String query, Platform.ContentType contentType, Loader loader, Map<FilterKey, String> filters);
+    List<SearchResult> search(String query, Platform.ContentType contentType, Loader loader, Map<FilterKey, String> filters);
 
-    DownloadInfo getDownloadUrl(String versionInfo);
+    DownloadInfo getDownloadInfo(String versionInfo);
 
     Set<ContentType> supportedContentTypes();
 
     String id();
+
+    String getFingerprint(File file) throws IOException;
+
+    Map<String, AddonData> fetchAddonData(List<String> fingerprints, Loader loader, String gameVersion, ContentType contentType);
 
     static <T> HttpResponse<T> sendRequest(HttpRequest request, HttpResponse.BodyHandler<T> bodyHandler) {
         try {
@@ -61,10 +67,17 @@ public interface Platform {
         }
     }
 
-    record ModVersionInfo(String id, String title, String description, String author, String url, String iconUrl,
-                          String versionInfo) {
+    record SearchResult(String id, String name, String description, String author, String url, String iconUrl,
+                        String versionUri) {
     }
 
-    record DownloadInfo(String url, String filename) {
+    record DownloadInfo(HttpRequest request, String filename) {
+        public DownloadInfo(String url, String filename) {
+            this(HttpRequest.newBuilder(URI.create(url)).build(), filename);
+        }
+    }
+
+    record AddonData(String id, String iconUrl, String name, String author, String version, String pageUrl,
+                     String versionUri, String updateUri) {
     }
 }

@@ -76,7 +76,7 @@ public class BackupManager {
 
         @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-            byte[] sha256 = Utils.getSha256(Files.newInputStream(file));
+            byte[] sha256 = Utils.getHash(Files.newInputStream(file), "SHA-256");
             String hash = Utils.bytesToHex(sha256);
             if (!existingHashes.contains(hash)) {
                 FileManager.copyFile(file, storageConfig);

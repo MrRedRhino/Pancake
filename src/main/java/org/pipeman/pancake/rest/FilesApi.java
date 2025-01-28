@@ -6,6 +6,8 @@ import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.NotFoundResponse;
 import org.pipeman.pancake.ServerManager;
 import org.pipeman.pancake.addons.AddonManager;
+import org.pipeman.pancake.addons.AddonManager.AddonMeta;
+import org.pipeman.pancake.addons.AddonManager.AddonMetaWithFile;
 import org.pipeman.pancake.addons.Platform;
 import org.pipeman.pancake.addons.Platforms;
 import org.pipeman.pancake.loaders.Loader;
@@ -16,7 +18,10 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class FilesApi {
     public static void listServerDirectories(Context ctx) {
@@ -40,53 +45,19 @@ public class FilesApi {
         ctx.json(platform.search(query, Platform.ContentType.MOD, loader, Map.of(Platform.FilterKey.GAME_VERSION, gameVersion)));
     }
 
-    public static void listAddons(Context ctx) {
+    public static void listAddons(Context ctx) throws IOException {
         long serverId = ctx.pathParamAsClass("server-id", Long.class).get();
         Platform.ContentType type = getContentType(ctx);
 
         ServerManager.ServerData serverData = ServerManager.getServerData(serverId).orElseThrow(() -> new BadRequestResponse("Server not found"));
-        File[] files = new File(serverData.path(), type.folderName()).listFiles(path -> !path.isDirectory());
+        File[] files = new File(serverData.path(), type.folderName()).listFiles(path -> !path.isDirectory() && path.length() > 0);
         if (files == null || files.length == 0) {
             ctx.json(List.of());
             return;
         }
 
-        List<String> filesList = Arrays.stream(files)
-                .map(File::getAbsolutePath)
-                .map(FilesApi::removeDisabled)
-                .toList();
-
-        Map<String, AddonManager.CachedAddonData> cachedData = new HashMap<>();
-        AddonManager.getCachedAddonData(filesList).forEach(addon -> cachedData.put(addon.path(), addon));
-
-        List<AddonData> result = new ArrayList<>(files.length);
-        for (File file : files) {
-            boolean enabled = !file.getName().endsWith(".disabled");
-            String filename = removeDisabled(file.getName());
-            AddonManager.CachedAddonData data = cachedData.get(removeDisabled(file.getAbsolutePath()));
-
-            if (data != null) {
-                List<String> pageUrls = data.versionData().values().stream()
-                        .map(AddonManager.VersionData::pageUrl)
-                        .toList();
-                Map<String, String> modIds = new HashMap<>();
-                data.versionData().forEach((platform, versionData) -> modIds.put(platform, versionData.modId()));
-
-                result.add(new AddonData(
-                        filename,
-                        data.name(),
-                        data.author(),
-                        pageUrls,
-                        modIds,
-                        data.iconUrl(),
-                        data.version(),
-                        enabled
-                ));
-            } else {
-                result.add(new AddonData(filename, null, null, null, null, null, null, enabled));
-            }
-        }
-        ctx.json(result);
+        List<AddonMetaWithFile> meta = AddonManager.listAddons(List.of(files), serverData.loader(), serverData.gameVersion(), type);
+        ctx.json(aggregateAddonData(meta, serverData.modPlatformPriorities()));
     }
 
     public static void setEnabled(Context ctx, boolean enable) {
@@ -124,10 +95,31 @@ public class FilesApi {
         if (file.exists()) throw new BadRequestResponse("File already exists");
         file.getParentFile().mkdirs();
 
+        try (OutputStream stream = Files.newOutputStream(filePath, StandardOpenOption.CREATE)) {
+            ctx.bodyInputStream().transferTo(stream);
+        }
+    }
+
+    public static void uploadAddon(Context ctx) throws IOException {
+        long serverId = ctx.pathParamAsClass("server-id", Long.class).get();
+        String name = ctx.queryParamAsClass("name", String.class).get();
+        Platform.ContentType type = getContentType(ctx);
+
+        ServerManager.ServerData serverData = ServerManager.getServerData(serverId).orElseThrow(() -> new BadRequestResponse("Server not found"));
+        Path containingPath = Path.of(serverData.path()).resolve(type.folderName());
+        Path filePath = containingPath.resolve(name);
+        if (!filePath.getParent().equals(containingPath)) throw new BadRequestResponse("Filename contains directory");
+
+        File file = filePath.toFile();
+        if (file.exists()) throw new BadRequestResponse("File already exists");
+        file.getParentFile().mkdirs();
+
 
         try (OutputStream stream = Files.newOutputStream(filePath, StandardOpenOption.CREATE)) {
             ctx.bodyInputStream().transferTo(stream);
         }
+        List<AddonMetaWithFile> meta = AddonManager.listAddons(List.of(filePath.toFile()), serverData.loader(), serverData.gameVersion(), type);
+        ctx.json(aggregateAddonData(meta, serverData.modPlatformPriorities()).getFirst());
     }
 
     public static void deleteFile(Context ctx) {
@@ -155,24 +147,67 @@ public class FilesApi {
         return filename.endsWith(".disabled") ? filename.substring(0, filename.length() - 9) : filename;
     }
 
-    public static void installAddon(Context ctx) {
+    public static void installAddon(Context ctx) throws IOException {
         long serverId = ctx.pathParamAsClass("server-id", Long.class).get();
         Platform.ContentType type = getContentType(ctx);
         String versionUri = ctx.queryParamAsClass("versionUri", String.class).get();
 
         ServerManager.ServerData serverData = ServerManager.getServerData(serverId).orElseThrow(() -> new BadRequestResponse("Server not found"));
         try {
-            AddonManager.install(versionUri, Path.of(serverData.path()).resolve(type.folderName()));
+            Path installPath = AddonManager.install(versionUri, Path.of(serverData.path()).resolve(type.folderName()));
+            List<AddonMetaWithFile> meta = AddonManager.listAddons(List.of(installPath.toFile()), serverData.loader(), serverData.gameVersion(), type);
+            ctx.json(aggregateAddonData(meta, serverData.modPlatformPriorities()).getFirst());
         } catch (IllegalArgumentException e) {
             throw new BadRequestResponse(e.getMessage());
         }
     }
 
+    private static List<AggregatedAddonData> aggregateAddonData(List<AddonMetaWithFile> meta, List<Platform> modPlatformPriorities) {
+        Map<String, List<AddonMetaWithFile>> aggregatedMeta = new HashMap<>();
+        for (AddonMetaWithFile addonMeta : meta) {
+            aggregatedMeta.computeIfAbsent(addonMeta.meta().hash(), k -> new ArrayList<>()).add(addonMeta);
+        }
+
+        List<AggregatedAddonData> result = new ArrayList<>();
+        aggregatedMeta.forEach((hash, addonMetas) -> {
+            List<AddonMetaWithFile> sortedMetas = new ArrayList<>();
+            AddonMetaWithFile firstFound = null;
+            for (Platform platform : modPlatformPriorities) {
+                for (AddonMetaWithFile m : addonMetas) {
+                    if (Platforms.fromString(m.meta().platform()) == platform) sortedMetas.add(m);
+                    if (firstFound == null && m.meta().found()) firstFound = m;
+                }
+            }
+
+            if (firstFound != null) {
+                AddonMeta firstFoundMeta = firstFound.meta();
+                List<String> pageUrls = sortedMetas.stream()
+                        .filter(m -> m.meta().found())
+                        .map(m -> m.meta().platform() + ":" + m.meta().pageUrl())
+                        .toList();
+
+                result.add(new AggregatedAddonData(
+                        removeDisabled(firstFound.file().getName()),
+                        firstFoundMeta.name(),
+                        firstFoundMeta.author(),
+                        pageUrls,
+                        firstFoundMeta.iconUrl(),
+                        firstFoundMeta.versionString(),
+                        !firstFound.file().getName().endsWith(".disabled"),
+                        sortedMetas.stream().anyMatch(m -> m.meta().updateUri() != null)
+                ));
+            } else {
+                String filename = addonMetas.getFirst().file().getName();
+                result.add(new AggregatedAddonData(filename, filename, null, null, null, null, !filename.endsWith(".disabled"), false));
+            }
+        });
+        return result;
+    }
+
     private record ListServerDirectoriesEntry(String path, boolean isServer) {
     }
 
-    private record AddonData(String filename, String name, String author, List<String> pageUrls,
-                             Map<String, String> modIds, String iconUrl,
-                             String version, boolean enabled) {
+    private record AggregatedAddonData(String filename, String name, String author, List<String> pageUrls,
+                                       String iconUrl, String version, boolean enabled, boolean updateAvailable) {
     }
 }

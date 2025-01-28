@@ -33,7 +33,7 @@ function search() {
   const platformValue = platform.value.code;
 
   isSearching = true;
-  fetch(`/api/mods/search?query=${queryValue}&platform=${platformValue}&loader=FABRIC&gameVersion=1.20.1`).then(r => r.json()).then(r => {
+  fetch(`/api/mods/search?query=${queryValue}&platform=${platformValue}&loader=${dialogRef.value.data.server.loader}&gameVersion=${dialogRef.value.data.server.gameVersion}`).then(r => r.json()).then(r => {
     isSearching = false;
     results.value = r.map(r => {
       r.platform = platformValue;
@@ -44,7 +44,7 @@ function search() {
 }
 
 function isInstalled(result) {
-  return dialogRef.value.data.installedAddons.filter(a => a.name === result.title).length > 0;
+  return dialogRef.value.data.installedAddons.filter(a => a.name === result.name).length > 0;
 }
 
 async function install(searchResult) {
@@ -75,7 +75,7 @@ async function install(searchResult) {
       <a v-for="result in results" class="flex gap-2 items-start" :href="result.url" target="_blank">
         <img class="h-16 w-16" :src="result.iconUrl" alt="Icon">
         <div>
-          <h1>{{ result.title }} by <a>{{ result.author }}</a></h1>
+          <h1>{{ result.name }} by <a>{{ result.author }}</a></h1>
           <h2 class="text-surface-400">{{ result.description }}</h2>
         </div>
         <LoadingButton @click.prevent="install(result)"

@@ -65,7 +65,10 @@ CREATE TABLE IF NOT EXISTS servers
     mod_platform_priorities text,
     show_plugin_folder      boolean,
     show_mods_folder        boolean,
-    show_datapacks_folder   boolean
+    show_datapacks_folder boolean,
+    loader                text,
+    game_version          text,
+    loader_version        text
 );
 
 CREATE TABLE IF NOT EXISTS sessions
@@ -86,13 +89,19 @@ CREATE TABLE IF NOT EXISTS sessions
     expires_at timestamp
 );
 
-CREATE TABLE IF NOT EXISTS addons_version_cache
+CREATE TABLE IF NOT EXISTS addon_meta
 (
-    file_path         text primary key,
-    icon_url          text,
-    name              text,
-    author            text,
-    version_string    text,
-    last_update_check timestamp,
-    version_data      text
+    hash           text,
+    platform       text,
+    found          boolean,
+    id             text,
+    icon_url       text,
+    name           text,
+    author         text,
+    version_string text,
+    page_url       text,
+    version_uri    text,
+    update_uri     text,
+    fetched_at     timestamp,
+    primary key (hash, platform)
 );

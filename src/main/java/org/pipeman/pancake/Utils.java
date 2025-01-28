@@ -30,9 +30,9 @@ public class Utils {
     public static class HashingOutputStream extends FilterOutputStream {
         private final MessageDigest digest;
 
-        public HashingOutputStream(OutputStream out) {
+        public HashingOutputStream(OutputStream out, String algorithm) {
             super(out);
-            digest = Utils.getSha256Digest();
+            digest = Utils.getDigest(algorithm);
         }
 
         @Override
@@ -62,10 +62,10 @@ public class Utils {
         }
     }
 
-    public static byte[] getSha256(InputStream stream) throws IOException {
+    public static byte[] getHash(InputStream stream, String algorithm) throws IOException {
         byte[] buffer = new byte[8192];
         int count;
-        MessageDigest digest = Utils.getSha256Digest();
+        MessageDigest digest = Utils.getDigest(algorithm);
         while ((count = stream.read(buffer)) > 0) {
             digest.update(buffer, 0, count);
         }
@@ -73,9 +73,9 @@ public class Utils {
         return digest.digest();
     }
 
-    public static MessageDigest getSha256Digest() {
+    public static MessageDigest getDigest(String algorithm) {
         try {
-            return MessageDigest.getInstance("SHA-256");
+            return MessageDigest.getInstance(algorithm);
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }

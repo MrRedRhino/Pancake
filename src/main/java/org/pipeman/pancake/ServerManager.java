@@ -3,8 +3,12 @@ package org.pipeman.pancake;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import org.pipeman.pancake.addons.Platform;
+import org.pipeman.pancake.addons.Platforms;
+import org.pipeman.pancake.loaders.Loader;
 
 import java.beans.ConstructorProperties;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
@@ -65,21 +69,38 @@ public class ServerManager {
         return optServerById(serverId, false);
     }
 
-    public record ServerData(long id, String name, String path, String startCommand, List<String> modPlatformPriorities,
-                             boolean showPluginFolder, boolean showModsFolder, boolean showDatapacksFolder) {
-        @ConstructorProperties({"id", "name", "path", "start_command", "mod_platform_priorities", "show_plugin_folder", "show_mods_folder", "show_datapacks_folder"})
-        public ServerData(long id, String name, String path, String startCommand, String modPlatformPriorities, boolean showPluginFolder, boolean showModsFolder, boolean showDatapacksFolder) {
+    public record ServerData(long id, String name, String path, String startCommand,
+                             List<Platform> modPlatformPriorities,
+                             boolean showPluginFolder, boolean showModsFolder, boolean showDatapacksFolder,
+                             Loader loader, String gameVersion, String loaderVersion) {
+        @ConstructorProperties({"id", "name", "path", "start_command", "mod_platform_priorities", "show_plugin_folder", "show_mods_folder", "show_datapacks_folder", "loader", "game_version", "loader_version"})
+        public ServerData(long id, String name, String path, String startCommand, String modPlatformPriorities, boolean showPluginFolder, boolean showModsFolder, boolean showDatapacksFolder, String loader, String gameVersion, String loaderVersion) {
             this(
                     id,
                     name,
                     path,
                     startCommand,
-                    Main.deserialize(modPlatformPriorities, new TypeReference<List<String>>() {
-                    }),
+                    deserializePlatforms(modPlatformPriorities),
                     showPluginFolder,
                     showModsFolder,
-                    showDatapacksFolder
+                    showDatapacksFolder,
+                    Loader.valueOf(loader),
+                    gameVersion,
+                    loaderVersion
             );
+        }
+
+        private static List<Platform> deserializePlatforms(String s) {
+            Platform[] priorities = Main.deserialize(s, new TypeReference<List<String>>() {
+                    })
+                    .stream()
+                    .map(Platforms::fromString)
+                    .toArray(Platform[]::new);
+            ArrayList<Platform> list = new ArrayList<>(List.of(priorities));
+            for (Platforms platform : Platforms.values()) {
+                if (!list.contains(platform)) list.add(platform);
+            }
+            return list;
         }
     }
 }

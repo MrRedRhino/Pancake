@@ -2,11 +2,12 @@
 import {useRoute} from "vue-router";
 import CurseforgeLogo from "@/assets/CurseforgeLogo.vue";
 import ModrinthLogo from "@/assets/ModrinthLogo.vue";
-import {servers} from "@/main.js";
 import {reactive, ref} from "vue";
 import axios from "axios";
 import {useConfirm, useDialog, useToast} from "primevue";
 import AddonSearchDialog from "@/views/AddonSearchDialog.vue";
+import HangarLogo from "@/assets/HangarLogo.vue";
+import {servers} from "@/main.js";
 
 const dialog = useDialog();
 const confirm = useConfirm();
@@ -47,31 +48,24 @@ fetch(`/api/servers/${serverId}/${props.type}`).then(r => r.json()).then(data =>
   loaded.value = true;
 });
 
-function sortPageUrls(pageUrls) {
-  const priorities = servers[serverId].modPlatformPriorities;
-
+function mapPageUrls(pageUrls) {
   return pageUrls.map(url => {
     const colon = url.indexOf(":");
     return {
-      platform: url.substring(0, colon),
+      platform: getPlatformLogo(url.substring(0, colon)),
       url: url.substring(colon + 1)
     }
-  }).sort((x, y) => {
-    const indexX = priorities.indexOf(x.platform);
-    const indexY = priorities.indexOf(y.platform);
-    if (indexX === -1 && indexY === -1) return 0;
-    if (indexX === -1) return 1;
-    if (indexY === -1) return -1;
-    return indexX - indexY;
   });
 }
 
 function getPlatformLogo(platform) {
   switch (platform) {
-    case "modrinth":
+    case "MODRINTH":
       return ModrinthLogo;
-    case "curseforge":
+    case "CURSEFORGE":
       return CurseforgeLogo;
+    case "HANGAR":
+      return HangarLogo;
   }
 }
 
@@ -95,24 +89,42 @@ async function uploadFile() {
   mods.unshift(mod);
 
   try {
-    await axios.post(`/api/servers/${serverId}/files/upload?path=${props.type}/${filename}`, fileInput.value.files[0], {
+    const response = await axios.post(`/api/servers/${serverId}/${props.type}/upload?name=${encodeURIComponent(filename)}`, fileInput.value.files[0], {
       onUploadProgress: event => mod.progress = event.progress * 95,
     });
+    if (response.status === 200) {
+      mod.progress = 100;
+
+      setTimeout(() => {
+        mod.progress = null;
+
+        mod.filename = response.data.filename;
+        mod.name = response.data.name;
+        mod.author = response.data.author;
+        mod.pageUrls = response.data.pageUrls;
+        mod.iconUrl = response.data.iconUrl;
+        mod.version = response.data.version;
+        mod.enabled = response.data.enabled;
+
+        toast.add({
+          severity: "success",
+          summary: "Upload Complete",
+          detail: `${filename} has been uploaded`,
+          life: 3000,
+          group: "br"
+        });
+      }, 500);
+    }
   } catch (error) {
     mods.splice(mods.indexOf(mod), 1);
-  }
-  mod.progress = 100;
-
-  setTimeout(() => {
-    mod.progress = null;
     toast.add({
-      severity: "success",
-      summary: "Upload Complete",
-      detail: `${filename} has been uploaded`,
+      severity: "error",
+      summary: "Upload Failed",
+      detail: `${filename}: ${error.response.data.title}`,
       life: 3000,
       group: "br"
     });
-  }, 500);
+  }
 }
 
 function openFileDialog() {
@@ -144,20 +156,11 @@ function confirmDelete(mod) {
 }
 
 async function installAddon(searchResult) {
-  const response = await fetch(`/api/servers/${serverId}/${props.type}/install?versionUri=${searchResult.versionInfo}`, {
+  const response = await fetch(`/api/servers/${serverId}/${props.type}/install?versionUri=${searchResult.versionUri}`, {
     method: "POST",
   });
   if (response.ok) {
-    mods.unshift({
-      "id": searchResult.id,
-      "filename": "",
-      "name": searchResult.title,
-      "author": searchResult.author,
-      "pageUrls": [`${searchResult.platform}://${searchResult.url}`],
-      "iconUrl": searchResult.iconUrl,
-      "version": "",
-      "enabled": true,
-    });
+    mods.unshift(await response.json());
   }
 }
 </script>
@@ -173,7 +176,7 @@ async function installAddon(searchResult) {
     <div class="flex gap-2 mb-2">
       <SplitButton icon="pi pi-plus" :label="`Install ${props.type}`"
                    :model="[{label: 'Upload file', command: openFileDialog}]"
-                   @click="dialog.open(AddonSearchDialog, {props: {header: 'Search Mods'}, data: {onInstall: installAddon, installedAddons: mods}})"></SplitButton>
+                   @click="dialog.open(AddonSearchDialog, {props: {header: 'Search Mods'}, data: {onInstall: installAddon, installedAddons: mods, server: servers[serverId]}})"></SplitButton>
       <Button icon="pi pi-sync" label="Fetch updates"/>
     </div>
 
@@ -194,14 +197,18 @@ async function installAddon(searchResult) {
             <h1 v-if="mod.author" class="text-surface-400">by {{ mod.author }}</h1>
           </div>
 
-          <div v-if="mod.pageUrls" class="flex flex-row gap-3" v-for="url in sortPageUrls(mod.pageUrls)">
+          <div v-if="mod.pageUrls" class="flex flex-row gap-3" v-for="url in mapPageUrls(mod.pageUrls)">
             <a target="_blank" :href="url.url">
-              <component :is="getPlatformLogo(url.platform)" class="p-2 w-12 rounded-full bg-surface-800"></component>
+              <component :is="url.platform" class="p-2 w-12 rounded-full bg-surface-800"></component>
             </a>
           </div>
 
-          <ToggleSwitch class="ml-auto" v-model="mod.enabled"
-                        @value-change="value => setEnabled(mod.filename, value)"></ToggleSwitch>
+          <div class="ml-auto mr-2 flex items-center gap-2">
+            <Button v-if="mod.updateAvailable" icon="pi pi-download" variant="text"></Button>
+            <ToggleSwitch v-model="mod.enabled" @value-change="value => setEnabled(mod.filename, value)">
+
+            </ToggleSwitch>
+          </div>
         </div>
       </a>
 
