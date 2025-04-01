@@ -15,6 +15,7 @@ import {
     Avatar,
     Button,
     ButtonGroup,
+    Checkbox,
     ConfirmationService,
     ConfirmDialog,
     ContextMenu,
@@ -23,7 +24,10 @@ import {
     DynamicDialog,
     FileUpload,
     FloatLabel,
+    Fluid,
     IconField,
+    InputGroup,
+    InputGroupAddon,
     InputIcon,
     InputText,
     Menu,
@@ -31,10 +35,13 @@ import {
     Password,
     ScrollPanel,
     Select,
+    SelectButton,
     Skeleton,
     SplitButton,
     Tab,
     TabList,
+    TabPanel,
+    TabPanels,
     Tabs,
     Toast,
     ToastService,
@@ -45,7 +52,7 @@ import {definePreset} from "@primevue/themes";
 import ModListView from "@/views/ModListView.vue";
 import PluginListView from "@/views/PluginListView.vue";
 import DatapackListView from "@/views/DatapackListView.vue";
-import {Form} from "@primevue/forms";
+import {Form, FormField} from "@primevue/forms";
 
 export const account = ref();
 export const authorized = ref();
@@ -53,6 +60,7 @@ export const servers = reactive({});
 export const initialLoad = ref(false);
 
 let webSocket = null;
+const subscribedLogs = [];
 
 export async function authenticate() {
     const accountResponse = await fetch("/api/account");
@@ -76,6 +84,8 @@ export async function authenticate() {
                 servers[server.id].state = servers[server.id].state.toLowerCase();
             }
             initialLoad.value = true;
+
+            subscribedLogs.forEach(subscribeToLog);
         };
 
         webSocket.onmessage = message => {
@@ -125,6 +135,9 @@ export function subscribeToLog(serverId) {
             serverId: serverId
         }
     }));
+    if (!subscribedLogs.includes(serverId)) {
+        subscribedLogs.push(serverId);
+    }
 }
 
 export async function logout() {
@@ -207,8 +220,10 @@ createApp(App)
     .component("Menu", Menu)
     .component("ContextMenu", ContextMenu)
     .component("Form", Form)
+    .component("Checkbox", Checkbox)
     .component("ToggleSwitch", ToggleSwitch)
     .component("Button", Button)
+    .component("SelectButton", SelectButton)
     .component("SplitButton", SplitButton)
     .component("ButtonGroup", ButtonGroup)
     .component("FloatLabel", FloatLabel)
@@ -216,7 +231,11 @@ createApp(App)
     .component("Password", Password)
     .component("IconField", IconField)
     .component("InputIcon", InputIcon)
+    .component("InputGroup", InputGroup)
+    .component("InputGroupAddon", InputGroupAddon)
     .component("Message", Message)
+    .component("TabPanels", TabPanels)
+    .component("TabPanel", TabPanel)
     .component("TabList", TabList)
     .component("Tabs", Tabs)
     .component("Tab", Tab)
@@ -230,6 +249,8 @@ createApp(App)
     .component("Dialog", Dialog)
     .component("Skeleton", Skeleton)
     .component("Avatar", Avatar)
+    .component("FormField", FormField)
+    .component("Fluid", Fluid)
     .mount('#app');
 
 authenticate().then();

@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,12 +18,8 @@ import java.util.*;
 public class AddonManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(AddonManager.class);
 
-    public static Path install(String versionUri, Path directory) {
-        URI uri = URI.create(versionUri);
-        Platform platform = Platforms.fromString(uri.getScheme().toUpperCase());
-        if (platform == null) throw new IllegalArgumentException("Invalid version URI: " + versionUri);
-
-        Platform.DownloadInfo downloadInfo = platform.getDownloadInfo(uri.getSchemeSpecificPart().substring(2));
+    public static Path install(VersionInfo versionInfo, Path directory) {
+        Platform.DownloadInfo downloadInfo = versionInfo.platform().getDownloadInfo(versionInfo);
         Path path = directory.resolve(downloadInfo.filename());
         if (path.toFile().exists()) {
             throw new IllegalArgumentException("File already exists: " + path);

@@ -33,7 +33,9 @@ function search() {
   const platformValue = platform.value.code;
 
   isSearching = true;
-  fetch(`/api/mods/search?query=${queryValue}&platform=${platformValue}&loader=${dialogRef.value.data.server.loader}&gameVersion=${dialogRef.value.data.server.gameVersion}`).then(r => r.json()).then(r => {
+  const server = dialogRef.value.data.server;
+  // fetch(`/api/mods/search?query=${queryValue}&platform=${platformValue}&loader=${server?.loader}&gameVersion=${server?.gameVersion}`).then(r => r.json()).then(r => {
+  fetch(`/api/mods/search?query=${queryValue}&type=MODPACK&platform=${platformValue}&loader=${server?.loader || ''}&gameVersion=${server?.gameVersion || ''}`).then(r => r.json()).then(r => {
     isSearching = false;
     results.value = r.map(r => {
       r.platform = platformValue;
@@ -48,7 +50,7 @@ function isInstalled(result) {
 }
 
 async function install(searchResult) {
-  await dialogRef.value.data.onInstall(searchResult);
+  await dialogRef.value.data.onInstall(searchResult, dialogRef.value);
 }
 </script>
 
@@ -61,7 +63,8 @@ async function install(searchResult) {
       </IconField>
 
       <Select :options="platforms" v-model="platform" option-label="name"
-              :option-disabled="option => option.code === 'HANGAR'">
+              :option-disabled="option => option.code === 'HANGAR'"
+              pt:label:class="!pr-0">
         <template #option="slotProps">
           <div class="flex items-center">
             <component :is="slotProps.option.logo" class="w-4 mr-2"></component>
@@ -75,7 +78,7 @@ async function install(searchResult) {
       <a v-for="result in results" class="flex gap-2 items-start" :href="result.url" target="_blank">
         <img class="h-16 w-16" :src="result.iconUrl" alt="Icon">
         <div>
-          <h1>{{ result.name }} by <a>{{ result.author }}</a></h1>
+          <h1 class="overflow-hidden">{{ result.name }} by {{ result.author }}</h1>
           <h2 class="text-surface-400">{{ result.description }}</h2>
         </div>
         <LoadingButton @click.prevent="install(result)"

@@ -2,9 +2,9 @@ webserver:
   port: 8080
   host: 0.0.0.0
 minecraft-server:
-  directory: mc-server
-  start-command: /home/pipeman/.jdks/zulu21.32.17-ca-jre21.0.2-linux_x64/bin/java
-    -jar paper-1.21.1-120.jar nogui
   console-history:
     max-lines: 10000
+mod-platforms:
+  curseforge:
+    api-key: $2a$10$9EWg4HOI4HEkBhFUWlNN6e7Xh8PI2C/gGPD/1.8zw4hZxRWMpgy6a
 server-port: 8080

@@ -21,14 +21,14 @@ import java.util.function.Supplier;
 import static java.text.MessageFormat.format;
 
 public enum Loader {
-    FABRIC(Loader::getFabricGameVersions, Loader::getFabricLoaderVersions),
-    FORGE(Loader::getForgeGameVersions, Loader::getForgeLoaderVersions),
-    PAPER(List::of, gameVersion -> List.of()),
-    PURPUR(List::of, gameVersion -> List.of()),
+    FABRIC(Loader::getFabricGameVersions, Loader::getFabricLoaderVersions, false, true),
+    FORGE(Loader::getForgeGameVersions, Loader::getForgeLoaderVersions, false, true),
+    PAPER(List::of, gameVersion -> List.of(), true, false),
+    PURPUR(List::of, gameVersion -> List.of(), true, false),
     // NEOFORGE
     // QUILT
-    VELOCITY(List::of, gameVersion -> List.of()),
-    VANILLA(Loader::getVanillaGameVersions, Loader::getVanillaLoaderVersions);
+    VELOCITY(List::of, gameVersion -> List.of(), true, false),
+    VANILLA(Loader::getVanillaGameVersions, Loader::getVanillaLoaderVersions, false, false);
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
     private static final LoadingCache<Loader, List<GameVersion>> gameVersionCache = Caffeine.newBuilder()
@@ -36,10 +36,14 @@ public enum Loader {
 
     private final Supplier<List<GameVersion>> gameVerionsSupplier;
     private final LoadingCache<String, List<LoaderVersion>> loaderVersionsCache;
+    private final boolean supportsPlugins;
+    private final boolean supportsMods;
 
-    Loader(Supplier<List<GameVersion>> gameVerionsSupplier, Function<String, List<LoaderVersion>> loaderVersionsSupplier) {
+    Loader(Supplier<List<GameVersion>> gameVerionsSupplier, Function<String, List<LoaderVersion>> loaderVersionsSupplier, boolean supportsPlugins, boolean supportsMods) {
         this.gameVerionsSupplier = gameVerionsSupplier;
         this.loaderVersionsCache = Caffeine.newBuilder().build(loaderVersionsSupplier::apply);
+        this.supportsPlugins = supportsPlugins;
+        this.supportsMods = supportsMods;
     }
 
     public List<GameVersion> getGameVersions() {
@@ -153,6 +157,14 @@ public enum Loader {
         }
     }
 
+    public boolean supportsPlugins() {
+        return supportsPlugins;
+    }
+
+    public boolean supportsMods() {
+        return supportsMods;
+    }
+
     // NeoForge: https://github.com/modrinth/code/blob/d5f2ada8f7e483db76ec27f900e8f1f8f0fbc7d3/apps/daedalus_client/src/forge.rs#L100
 
     public record LoaderVersion(String gameVersion, String version, String downloadUrl) {
@@ -161,6 +173,14 @@ public enum Loader {
     public record GameVersion(String gameVersion, boolean stable, @JsonIgnore String metaUrl) {
         public GameVersion(String gameVersion, boolean stable) {
             this(gameVersion, stable, null);
+        }
+    }
+
+    public static Loader fromString(String s) {
+        try {
+            return valueOf(s.toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return null;
         }
     }
 }

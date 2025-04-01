@@ -11,7 +11,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 public class FileManager {
@@ -19,25 +18,16 @@ public class FileManager {
             "filesystem", FilesystemBackupStorage::new
     );
 
-    public static Set<String> getExistingHashes() {
-        return Database.getJdbi().withHandle(h -> h.createQuery("""
-                        SELECT hash
-                        FROM backup_file_meta
-                        """)
-                .mapTo(String.class)
-                .set());
-    }
-
-    public static void copyFile(Path path, JSONObject storageConfig) throws IOException {
+    public static void copyFile(Path path, byte[] hash, JSONObject storageConfig) throws IOException {
         String type = storageConfig.getString("storage_type");
         BackupFileStorage storage = storages.get(type).apply(storageConfig);
 
         FileMeta file = storage.createFile(Files.newInputStream(path));
         Database.getJdbi().useHandle(h -> h.createUpdate("""
-                        INSERT INTO backup_file_meta (hash, storage_type, url)
+                        INSERT INTO backup_file_meta (hash, storage_configuration, url)
                         VALUES (:hash, :storage_type, :url)
                         """)
-                .bind("passwordHash", file.hash)
+                .bind("hash", hash)
                 .bind("storage_type", file.storageType)
                 .bind("url", file.url)
                 .execute());

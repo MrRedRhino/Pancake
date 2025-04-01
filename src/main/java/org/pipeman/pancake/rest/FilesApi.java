@@ -10,6 +10,7 @@ import org.pipeman.pancake.addons.AddonManager.AddonMeta;
 import org.pipeman.pancake.addons.AddonManager.AddonMetaWithFile;
 import org.pipeman.pancake.addons.Platform;
 import org.pipeman.pancake.addons.Platforms;
+import org.pipeman.pancake.addons.VersionInfo;
 import org.pipeman.pancake.loaders.Loader;
 
 import java.io.File;
@@ -31,7 +32,8 @@ public class FilesApi {
         List<ListServerDirectoriesEntry> result = new ArrayList<>();
         for (File file : files == null ? new File[0] : files) {
             boolean isServer = new File(file.getPath(), "server.properties").exists();
-            result.add(new ListServerDirectoriesEntry(file.getAbsolutePath(), isServer));
+            File[] children = file.listFiles(f -> f.isDirectory() && !f.isHidden());
+            result.add(new ListServerDirectoriesEntry(file.getAbsolutePath(), file.getName(), isServer, children != null && children.length > 0));
         }
         ctx.json(result);
     }
@@ -39,10 +41,13 @@ public class FilesApi {
     public static void searchMods(Context ctx) {
         String query = ctx.queryParamAsClass("query", String.class).get();
         Platforms platform = ctx.queryParamAsClass("platform", Platforms.class).get();
-        Loader loader = ctx.queryParamAsClass("loader", Loader.class).get();
-        String gameVersion = ctx.queryParamAsClass("gameVersion", String.class).get();
+        Platform.ContentType type = ctx.queryParamAsClass("type", Platform.ContentType.class).getOrDefault(Platform.ContentType.MOD);
+        Loader loader = ctx.queryParamAsClass("loader", Loader.class).getOrDefault(null);
+        String gameVersion = ctx.queryParamAsClass("gameVersion", String.class).getOrDefault(null);
 
-        ctx.json(platform.search(query, Platform.ContentType.MOD, loader, Map.of(Platform.FilterKey.GAME_VERSION, gameVersion)));
+        Map<Platform.FilterKey, String> filters = new HashMap<>();
+        if (gameVersion != null) filters.put(Platform.FilterKey.GAME_VERSION, gameVersion);
+        ctx.json(platform.search(query, type, loader, filters));
     }
 
     public static void listAddons(Context ctx) throws IOException {
@@ -150,7 +155,7 @@ public class FilesApi {
     public static void installAddon(Context ctx) throws IOException {
         long serverId = ctx.pathParamAsClass("server-id", Long.class).get();
         Platform.ContentType type = getContentType(ctx);
-        String versionUri = ctx.queryParamAsClass("versionUri", String.class).get();
+        VersionInfo versionUri = ctx.queryParamAsClass("version", VersionInfo.class).get();
 
         ServerManager.ServerData serverData = ServerManager.getServerData(serverId).orElseThrow(() -> new BadRequestResponse("Server not found"));
         try {
@@ -160,6 +165,11 @@ public class FilesApi {
         } catch (IllegalArgumentException e) {
             throw new BadRequestResponse(e.getMessage());
         }
+    }
+
+    public static void listModpackFiles(Context ctx) {
+        VersionInfo versionUri = ctx.queryParamAsClass("version", VersionInfo.class).get();
+
     }
 
     private static List<AggregatedAddonData> aggregateAddonData(List<AddonMetaWithFile> meta, List<Platform> modPlatformPriorities) {
@@ -204,7 +214,7 @@ public class FilesApi {
         return result;
     }
 
-    private record ListServerDirectoriesEntry(String path, boolean isServer) {
+    private record ListServerDirectoriesEntry(String path, String name, boolean isServer, boolean hasChildren) {
     }
 
     private record AggregatedAddonData(String filename, String name, String author, List<String> pageUrls,

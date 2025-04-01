@@ -8,9 +8,12 @@ public class Permissions {
       - Manage Servers
 
     Server Permissions:
-      - Console Read
-        - Write
-      - Start/Stop
+      - Console Read: console.read
+        - Write: console.send
+      - Start/Stop: server.status
+      - Manage Addons:
+      - Manage Backups
+      - Settings
 
      */
 }

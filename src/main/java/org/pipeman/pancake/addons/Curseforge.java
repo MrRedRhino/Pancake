@@ -28,6 +28,7 @@ public class Curseforge implements Platform {
         queryMap.put("limit", 10);
         queryMap.put("sortField", 1);
         queryMap.put("sortOrder", "desc");
+
         addLoaderFilters(queryMap, loader, contentType);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/mods/search" + Utils.buildQuery(queryMap)))
@@ -48,16 +49,19 @@ public class Curseforge implements Platform {
                     result.getJSONArray("authors").getJSONObject(0).getString("name"),
                     "https://www.curseforge.com/minecraft/mc-mods/" + result.getString("slug"),
                     result.optJSONObject("logo", new JSONObject()).optString("thumbnailUrl", ""),
-                    "curseforge://" + result.getInt("id") + "/" + result.getJSONArray("latestFiles").getJSONObject(0).getInt("id")
+                    new VersionInfo(Platforms.CURSEFORGE,
+                            String.valueOf(result.getInt("id")),
+                            String.valueOf(result.getJSONArray("latestFiles").getJSONObject(0).getInt("id")),
+                            null)
             ));
         }
         return results;
     }
 
     @Override
-    public DownloadInfo getDownloadInfo(String versionInfo) {
-        String[] split = versionInfo.split("/", 2);
-        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/mods/" + split[0] + "/files/" + split[1]))
+    public DownloadInfo getDownloadInfo(VersionInfo versionInfo) {
+        // TODO versionInfo may not contain a version -> we have to fetch newest version
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/mods/" + versionInfo.projectId() + "/files/" + versionInfo.versionId()))
                 .header("X-Api-Key", Config.curseforgeApiKey())
                 .build();
 
@@ -68,6 +72,11 @@ public class Curseforge implements Platform {
                 .header("X-Api-Key", Config.curseforgeApiKey())
                 .build();
         return new DownloadInfo(downloadRequest, body.getString("fileName"));
+    }
+
+    @Override
+    public List<String> getSecondaryFiles(VersionInfo versionInfo) {
+        return List.of();
     }
 
     @Override
@@ -159,17 +168,35 @@ public class Curseforge implements Platform {
 
     // https://api.curseforge.com/v1/categories?gameId=432&classesOnly=true
     private static void addLoaderFilters(Map<String, Object> queryMap, Loader loader, ContentType contentType) {
-        if (contentType == ContentType.PLUGIN || Set.of(Loader.PAPER, Loader.PURPUR).contains(loader)) {
+        if (loader != null && loader.supportsMods()) {
+            queryMap.put("modLoaderType", switch (loader) {
+                case FORGE -> "1";
+                case FABRIC -> "4";
+                default -> throw new IllegalArgumentException("Loader does not support mods");
+            });
+        } else if (loader != null && loader.supportsPlugins()) {
             queryMap.put("classId", "5");
         } else {
-            String loaderType = switch (contentType) {
-                case MOD -> "6"; // TODO make this the actual loader not class for some reason
+            queryMap.put("classId", switch (contentType) {
+                case MOD -> "6";
                 case MODPACK -> "4471";
                 case DATAPACK -> "6945";
                 default -> throw new IllegalArgumentException();
-            };
-            queryMap.put("modLoaderType", loaderType);
+            });
         }
+
+
+//        if (contentType == ContentType.PLUGIN || (loader != null && Set.of(Loader.PAPER, Loader.PURPUR).contains(loader))) {
+//            queryMap.put("classId", "5");
+//        } else {
+//            String loaderType = switch (contentType) {
+//                case MOD -> "6"; // TODO make this the actual loader not class for some reason
+//                case MODPACK -> "4471";
+//                case DATAPACK -> "6945";
+//                default -> throw new IllegalArgumentException();
+//            };
+//            queryMap.put("classId", loaderType);
+//        }
     }
 
     public static void main(String[] args) throws IOException {

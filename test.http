@@ -1,1 +1,106 @@
-GET http://0.0.0.0:8080/api/command
+GET localhost:8080/api/servers/1/jobs
+
+###
+
+GET localhost:8080/api/files/server-directories?path=
+
+
+
+###
+
+PATCH localhost:8080/api/servers/1/jobs/640181860936187904
+Content-Type: application/json
+
+{
+  "name": "Daily restart",
+  "interval": {
+    "interval": 2,
+    "day": 5,
+    "timeOfDay": 0
+  },
+  "tasks": [
+    {
+      "type": "chat_message",
+      "config": {
+        "message": "Hallola"
+      }
+    }
+  ]
+}
+
+###
+
+DELETE localhost:8080/api/servers/1/jobs/640183449386221568
+
+###
+
+WEBSOCKET ws://127.0.0.1:8080/api/websocket
+
+### CurseForge Tests
+
+GET https://api.curseforge.com/v1/games/432
+X-Api-Key: $2a$10$9EWg4HOI4HEkBhFUWlNN6e7Xh8PI2C/gGPD/1.8zw4hZxRWMpgy6a
+
+###
+
+GET https://api.curseforge.com/v1/mods/search?gameId=432&gameVersion=1.21.1&searchFilter=carpet&limit=10
+X-Api-Key: $2a$10$9EWg4HOI4HEkBhFUWlNN6e7Xh8PI2C/gGPD/1.8zw4hZxRWMpgy6a
+
+###
+
+GET https://api.curseforge.com/v1/categories?gameId=432&classesOnly=true
+X-Api-Key: $2a$10$9EWg4HOI4HEkBhFUWlNN6e7Xh8PI2C/gGPD/1.8zw4hZxRWMpgy6a
+
+###
+
+GET https://api.curseforge.com/v1/mods/688768
+X-Api-Key: $2a$10$9EWg4HOI4HEkBhFUWlNN6e7Xh8PI2C/gGPD/1.8zw4hZxRWMpgy6a
+
+###
+
+GET https://api.curseforge.com/v1/mods/1003224/files/5434327
+X-Api-Key: $2a$10$9EWg4HOI4HEkBhFUWlNN6e7Xh8PI2C/gGPD/1.8zw4hZxRWMpgy6a
+
+###
+
+GET https://api.curseforge.com/v1/mods/461474/files
+X-Api-Key: $2a$10$9EWg4HOI4HEkBhFUWlNN6e7Xh8PI2C/gGPD/1.8zw4hZxRWMpgy6a
+
+###
+
+GET https://www.curseforge.com/api/v1/mods/search?gameId=432&index=0&classId=5&filterText=ad&pageSize=20&sortField=1
+
+###
+
+POST https://api.curseforge.com/v1/fingerprints/fuzzy/432
+X-Api-Key: $2a$10$9EWg4HOI4HEkBhFUWlNN6e7Xh8PI2C/gGPD/1.8zw4hZxRWMpgy6a
+Content-Type: application/json
+
+{
+  "gameId": 432,
+  "fingerprints": [
+    {
+      "foldername": "plugins",
+      "fingerprints": [
+        3203535911
+      ]
+    }
+  ]
+}
+
+###
+
+GET http://127.0.0.1:8080/api/loaders/fabric/game-versions
+Content-Type: application/json
+
+[
+  {
+    "title": "",
+    "timestamp": 120
+  }
+]
+
+###
+
+GET https://api.curseforge.com/v1/mods/63773/files/2800551
+X-Api-Key: $2a$10$9EWg4HOI4HEkBhFUWlNN6e7Xh8PI2C/gGPD/1.8zw4hZxRWMpgy6a

@@ -5,7 +5,9 @@ CREATE TABLE IF NOT EXISTS users
     id               bigint,
     name             text, -- TODO unique key
     password_hash    bytea,
-    is_administrator boolean
+    is_administrator boolean,
+    manage_users     boolean,
+    manage_servers   boolean
 );
 
 CREATE TABLE IF NOT EXISTS permissions
@@ -36,10 +38,13 @@ CREATE TABLE IF NOT EXISTS job_logs
 
 CREATE TABLE IF NOT EXISTS backups
 (
-    id         bigint primary key,
-    server_id  bigint,
-    created_at timestamp,
-    directory  text
+    id          bigint primary key,
+    server_id   bigint,
+    name        text,
+    created_at  timestamp,
+    directory   text,
+    incremental boolean,
+    completed   boolean
 );
 
 CREATE TABLE IF NOT EXISTS backup_files
@@ -51,9 +56,9 @@ CREATE TABLE IF NOT EXISTS backup_files
 
 CREATE TABLE IF NOT EXISTS backup_file_meta
 (
-    hash         text primary key,
-    storage_type text,
-    url          text
+    hash                  bytea primary key,
+    storage_configuration bigint,
+    url                   text
 );
 
 CREATE TABLE IF NOT EXISTS servers

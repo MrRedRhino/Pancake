@@ -26,8 +26,13 @@ public enum Platforms implements Platform {
     }
 
     @Override
-    public DownloadInfo getDownloadInfo(String versionInfo) {
+    public DownloadInfo getDownloadInfo(VersionInfo versionInfo) {
         return implementation.getDownloadInfo(versionInfo);
+    }
+
+    @Override
+    public List<String> getSecondaryFiles(VersionInfo versionInfo) {
+        return implementation.getSecondaryFiles(versionInfo);
     }
 
     @Override

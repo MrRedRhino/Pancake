@@ -17,7 +17,9 @@ public interface Platform {
 
     List<SearchResult> search(String query, Platform.ContentType contentType, Loader loader, Map<FilterKey, String> filters);
 
-    DownloadInfo getDownloadInfo(String versionInfo);
+    DownloadInfo getDownloadInfo(VersionInfo versionInfo);
+
+    List<String> getSecondaryFiles(VersionInfo versionInfo);
 
     Set<ContentType> supportedContentTypes();
 
@@ -36,17 +38,23 @@ public interface Platform {
     }
 
     enum FilterKey {
-        GAME_VERSION("gameVersion"),
-        LOADER("modLoaderType");
+        GAME_VERSION("gameVersion", "versions:");
+//        LOADER("modLoaderType", "categories:");
 
         private final String curseforgeName;
+        private final String modrinthName;
 
-        FilterKey(String curseforgeName) {
+        FilterKey(String curseforgeName, String modrinthName) {
             this.curseforgeName = curseforgeName;
+            this.modrinthName = modrinthName;
         }
 
         public String curseforgeName() {
             return curseforgeName;
+        }
+
+        public String modrinthName() {
+            return modrinthName;
         }
     }
 
@@ -65,10 +73,18 @@ public interface Platform {
         public String folderName() {
             return folderName;
         }
+
+        public static ContentType fromString(String s) {
+            try {
+                return valueOf(s.toUpperCase());
+            } catch (IllegalArgumentException ex) {
+                return null;
+            }
+        }
     }
 
     record SearchResult(String id, String name, String description, String author, String url, String iconUrl,
-                        String versionUri) {
+                        VersionInfo versionUri) {
     }
 
     record DownloadInfo(HttpRequest request, String filename) {

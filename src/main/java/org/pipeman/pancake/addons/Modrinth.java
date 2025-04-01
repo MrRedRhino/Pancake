@@ -20,19 +20,16 @@ public class Modrinth implements Platform {
 
     @Override
     public List<SearchResult> search(String query, ContentType contentType, Loader loader, Map<FilterKey, String> filters) {
-        List<String> gameVersionFacet = filters.containsKey(FilterKey.GAME_VERSION) ?
-                List.of("versions:" + filters.get(FilterKey.GAME_VERSION)) :
-                List.of();
+        List<List<String>> facets = new ArrayList<>();
+        facets.add(List.of("project_type:" + mapContentType(contentType)));
+        if (loader != null) facets.add(List.of("categories:" + mapLoader(loader)));
+        filters.forEach((k, v) -> facets.add(List.of(k.modrinthName() + v)));
 
         Map<String, Object> queryMap = new HashMap<>();
         queryMap.put("query", query);
         queryMap.put("limit", 20);
         queryMap.put("index", "relevance");
-        queryMap.put("facets", List.of(
-                gameVersionFacet,
-                List.of("project_type:" + mapContentType(contentType)),
-                List.of("categories:" + mapLoader(loader))
-        ));
+        queryMap.put("facets", facets);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/search" + Utils.buildQuery(queryMap))).build();
         HttpResponse<String> response = Platform.sendRequest(request, HttpResponse.BodyHandlers.ofString());
@@ -48,20 +45,27 @@ public class Modrinth implements Platform {
                     result.getString("author"),
                     "https://modrinth.com/project/" + result.getString("slug"),
                     result.getString("icon_url"),
-                    "modrinth://" + result.getString("project_id") + "/" + result.getString("latest_version")
+                    new VersionInfo(Platforms.MODRINTH, result.getString("project_id"), result.getString("latest_version"), null)
             ));
         }
         return results;
     }
 
     @Override
-    public DownloadInfo getDownloadInfo(String versionInfo) {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/version/" + versionInfo.split("/")[1])).build();
+    public DownloadInfo getDownloadInfo(VersionInfo versionInfo) {
+        // TODO the versionInfo may not contain a versionId -> fetch newest
+        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/version/" + versionInfo.versionId())).build();
 
         HttpResponse<String> response = Platform.sendRequest(request, HttpResponse.BodyHandlers.ofString());
         JSONObject body = new JSONObject(response.body());
         JSONObject file = body.getJSONArray("files").getJSONObject(0);
         return new DownloadInfo(file.getString("url"), file.getString("filename"));
+    }
+
+    @Override
+    public List<String> getSecondaryFiles(VersionInfo versionInfo) {
+
+        return List.of();
     }
 
     @Override

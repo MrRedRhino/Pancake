@@ -4,38 +4,47 @@ import org.jdbi.v3.core.statement.PreparedBatch;
 import org.json.JSONObject;
 import org.pipeman.pancake.Database;
 import org.pipeman.pancake.Main;
-import org.pipeman.pancake.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 public class BackupManager {
-    public static void createBackup(long serverId, Path directory, List<Path> ignoredDirectories) throws IOException {
+    private static final Logger LOGGER = LoggerFactory.getLogger(BackupManager.class);
+
+    public static void createBackup(long serverId, Path directory, String name, List<Path> ignoredDirectories) throws IOException {
+        long backupId = Main.generateNewId();
         Timestamp createdAt = new Timestamp(System.currentTimeMillis());
         JSONObject storageConfig = new JSONObject()
                 .put("storage_type", "filesystem")
                 .put("path", "backups");
 
+        LOGGER.info("Creating backup of {}", directory);
         CountingFileVisitor counter = new CountingFileVisitor(ignoredDirectories);
         Files.walkFileTree(directory, counter);
+        LOGGER.info("Backing up {} files", counter.totalCount());
 
-        Set<String> existingHashes = FileManager.getExistingHashes();
+        Database.getJdbi().useHandle(h -> h.createUpdate("""
+                        INSERT INTO backups (id, server_id, name, created_at, directory, incremental, completed)
+                        VALUES (:id, :server_id, :name, :created_at, :directory, true, false)
+                        """)
+                .bind("id", backupId)
+                .bind("server_id", serverId)
+                .bind("name", name)
+                .bind("created_at", createdAt)
+                .bind("directory", directory.toString())
+                .execute());
 
-        IncrementalBackupVisitor visitor2 = new IncrementalBackupVisitor(ignoredDirectories, existingHashes, storageConfig);
+        IncrementalBackupVisitor visitor2 = new IncrementalBackupVisitor(ignoredDirectories, storageConfig);
         Files.walkFileTree(directory, visitor2);
         List<IncrementalBackupVisitor.BackupFile> files = visitor2.files();
 
-        long backupId = Main.generateNewId();
+        LOGGER.info("Copied {} files", files.stream().filter(f -> !f.existed()).count());
+        LOGGER.info("Associating {} files with backup", files.size());
         Database.getJdbi().useHandle(h -> {
             PreparedBatch batch = h.prepareBatch("""
                     INSERT INTO backup_files (backup_id, hash, path)
@@ -44,8 +53,8 @@ public class BackupManager {
 
             for (IncrementalBackupVisitor.BackupFile file : files) {
                 batch.bind("backup_id", backupId)
-                        .bind("passwordHash", file.hash)
-                        .bind("path", file.path.toString())
+                        .bind("hash", file.hash())
+                        .bind("path", file.path().toString())
                         .add();
             }
 
@@ -53,93 +62,19 @@ public class BackupManager {
         });
 
         Database.getJdbi().useHandle(h -> h.createUpdate("""
-                        INSERT INTO backups (id, server_id, created_at, directory)
-                        VALUES (:id, :server_id, :created_at, :directory)
+                        UPDATE backups
+                        SET completed = true
+                        WHERE id = :id
                         """)
                 .bind("id", backupId)
-                .bind("server_id", serverId)
-                .bind("created_at", createdAt)
-                .bind("directory", directory.toString())
                 .execute());
     }
 
-    private static class IncrementalBackupVisitor extends BackupFileVisitor {
-        private final List<BackupFile> files = new ArrayList<>();
-        private final Set<String> existingHashes;
-        private final JSONObject storageConfig;
+    public static void main(String[] args) throws IOException {
+        // with computing hash: 00:53:20 - 56:47 -> 3 min for 160 gb
+        // with db query: 01:05:50 - 01:09:50 -> 4 min for 160 gb
 
-        public IncrementalBackupVisitor(List<Path> ignoredDirectories, Set<String> existingHashes, JSONObject storageConfig) {
-            super(ignoredDirectories);
-            this.existingHashes = existingHashes;
-            this.storageConfig = storageConfig;
-        }
 
-        @Override
-        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-            byte[] sha256 = Utils.getHash(Files.newInputStream(file), "SHA-256");
-            String hash = Utils.bytesToHex(sha256);
-            if (!existingHashes.contains(hash)) {
-                FileManager.copyFile(file, storageConfig);
-            }
-
-            files.add(new BackupFile(hash, file));
-            return super.visitFile(file, attrs);
-        }
-
-        public List<BackupFile> files() {
-            return files;
-        }
-
-        private record BackupFile(String hash, Path path) {
-        }
-    }
-
-    private static class BackupFileVisitor extends SimpleFileVisitor<Path> {
-        private static final Logger LOGGER = LoggerFactory.getLogger(BackupFileVisitor.class);
-        private final List<Path> ignoredDirectories;
-
-        public BackupFileVisitor(List<Path> ignoredDirectories) {
-            this.ignoredDirectories = ignoredDirectories;
-        }
-
-        @Override
-        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-            for (Path ignoredDirectory : ignoredDirectories) {
-                if (dir.endsWith(ignoredDirectory)) {
-                    return FileVisitResult.SKIP_SUBTREE;
-                }
-            }
-            return FileVisitResult.CONTINUE;
-        }
-
-        @Override
-        public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-            LOGGER.error("Error visiting file", exc);
-            return FileVisitResult.CONTINUE;
-        }
-    }
-
-    private static class CountingFileVisitor extends BackupFileVisitor {
-        private int totalCount = 0;
-        private long totalSize = 0;
-
-        public CountingFileVisitor(List<Path> ignoredDirectories) {
-            super(ignoredDirectories);
-        }
-
-        @Override
-        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-            totalSize += attrs.size();
-            totalCount++;
-            return super.visitFile(file, attrs);
-        }
-
-        public long totalSize() {
-            return totalSize;
-        }
-
-        public int totalCount() {
-            return totalCount;
-        }
+        createBackup(7282177237674102784L, Path.of("/home/pipeman/Desktop/servers/tournament/tournament-dev/world"), "Unnamed Backup", List.of());
     }
 }

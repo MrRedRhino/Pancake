@@ -9,6 +9,11 @@ const props = defineProps({
   serverId: {
     required: true
   },
+  textStatus: {
+    type: Boolean,
+    required: false,
+    default: false
+  },
   controls: {
     type: Boolean,
     required: false,
@@ -86,7 +91,7 @@ onUnmounted(() => clearInterval(interval));
     <div class="status-display"
          :class="[status === 'running' || status === 'stopped' ? status : empty ? 'empty' : status]">
     </div>
-    <a>{{ status }}</a>
+    <a v-if="props.textStatus">{{ status }}</a>
     <template v-if="props.controls">
       <ButtonGroup>
         <Button :disabled="transitioning"
@@ -100,7 +105,7 @@ onUnmounted(() => clearInterval(interval));
         <Button v-if="status !== 'stopped'" @click="confirmTerminate" size="small" severity="secondary">Kill</Button>
       </ButtonGroup>
     </template>
-    <h1 v-if="status === 'running'"><i class="pi pi-clock"></i>
+    <h1 v-if="status === 'running' && props.textStatus"><i class="pi pi-clock"></i>
       <RelativeTimestamp :date="new Date(+servers[props.serverId].startedAt)"/>
     </h1>
   </div>

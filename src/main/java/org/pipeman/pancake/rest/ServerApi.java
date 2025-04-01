@@ -6,11 +6,11 @@ import org.pipeman.pancake.Main;
 import org.pipeman.pancake.MinecraftServer;
 import org.pipeman.pancake.ServerManager;
 import org.pipeman.pancake.addons.Platform;
+import org.pipeman.pancake.addons.Platforms;
 import org.pipeman.pancake.loaders.Loader;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 public class ServerApi {
@@ -55,8 +55,35 @@ public class ServerApi {
     public static void importServer(Context ctx) {
         long id = Main.generateNewId();
         ImportServerBody body = ctx.bodyAsClass(ImportServerBody.class);
-        ServerManager.addServer(new ServerManager.ServerData(id, body.name(), body.path(), body.startCommand(), List.of(), true, true, true, Loader.FABRIC, "1.20.1", "1.16.9")); // TODO adapt server software
-        ctx.json(Map.of("id", id));
+
+        List<ServerManager.ServerData> existingServers = ServerManager.getServers();
+        List<Platform> platformPriorities = existingServers.stream()
+                .filter(serverData -> serverData.loader() == body.loader())
+                .map(ServerManager.ServerData::modPlatformPriorities)
+                .findFirst()
+                .or(() -> Optional.ofNullable(existingServers.isEmpty() ? null : existingServers.getFirst().modPlatformPriorities()))
+                .orElse(List.of(Platforms.MODRINTH, Platforms.CURSEFORGE));
+
+        ServerManager.addServer(new ServerManager.ServerData(id,
+                body.name(),
+                body.path(),
+                "",
+                platformPriorities,
+                body.loader().supportsPlugins(),
+                body.loader().supportsMods(),
+                true,
+                body.loader(),
+                body.gameVersion(),
+                null,
+                null));
+
+
+        ctx.json(new Server(id, body.name(), platformPriorities, body.loader().supportsPlugins(), body.loader().supportsMods(), true, body.loader(), body.gameVersion()));
+    }
+
+    public static void listSupportedGameVersionsByLoader(Context ctx) {
+        Loader loader = ctx.pathParamAsClass("loader", Loader.class).get();
+        ctx.json(loader.getGameVersions());
     }
 
     private record Server(long id, String name, MinecraftServer.State state, long startedAt,
@@ -81,6 +108,6 @@ public class ServerApi {
         }
     }
 
-    private record ImportServerBody(String name, String path, String startCommand) {
+    private record ImportServerBody(String name, String path, Loader loader, String gameVersion) {
     }
 }

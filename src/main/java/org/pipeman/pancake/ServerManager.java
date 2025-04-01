@@ -21,7 +21,7 @@ public class ServerManager {
 
     private static MinecraftServer loadServer(long serverId) {
         return getServerData(serverId)
-                .map(data -> new MinecraftServer(data.id(), data.path(), data.startCommand(), executorService))
+                .map(data -> new MinecraftServer(data.id(), executorService))
                 .orElse(null);
     }
 
@@ -47,13 +47,20 @@ public class ServerManager {
 
     public static void addServer(ServerData serverData) {
         Database.getJdbi().useHandle(h -> h.createUpdate("""
-                        INSERT INTO servers (id, name, path, start_command)
-                        VALUES (:id, :name, :path, :start_command)
+                        INSERT INTO servers (id, name, path, start_command, mod_platform_priorities, show_plugin_folder, show_mods_folder, show_datapacks_folder, loader, game_version, loader_version)
+                        VALUES (:id, :name, :path, :start_command, :mod_platform_priorities, :show_plugin_folder, :show_mods_folder, :show_datapacks_folder, :loader, :game_version, :loader_version)
                         """)
                 .bind("id", serverData.id())
                 .bind("name", serverData.name())
                 .bind("path", serverData.path())
                 .bind("start_command", serverData.startCommand())
+                .bind("mod_platform_priorities", Main.serialize(serverData.modPlatformPriorities()))
+                .bind("show_plugin_folder", serverData.showPluginFolder())
+                .bind("show_mods_folder", serverData.showModsFolder())
+                .bind("show_datapacks_folder", serverData.showDatapacksFolder())
+                .bind("loader", serverData.loader())
+                .bind("game_version", serverData.gameVersion())
+                .bind("loader_version", serverData.loaderVersion())
                 .execute());
     }
 
@@ -72,7 +79,7 @@ public class ServerManager {
     public record ServerData(long id, String name, String path, String startCommand,
                              List<Platform> modPlatformPriorities,
                              boolean showPluginFolder, boolean showModsFolder, boolean showDatapacksFolder,
-                             Loader loader, String gameVersion, String loaderVersion) {
+                             Loader loader, String gameVersion, String loaderVersion, RestartPolicy restartPolicy) {
         @ConstructorProperties({"id", "name", "path", "start_command", "mod_platform_priorities", "show_plugin_folder", "show_mods_folder", "show_datapacks_folder", "loader", "game_version", "loader_version"})
         public ServerData(long id, String name, String path, String startCommand, String modPlatformPriorities, boolean showPluginFolder, boolean showModsFolder, boolean showDatapacksFolder, String loader, String gameVersion, String loaderVersion) {
             this(
@@ -86,7 +93,8 @@ public class ServerManager {
                     showDatapacksFolder,
                     Loader.valueOf(loader),
                     gameVersion,
-                    loaderVersion
+                    loaderVersion,
+                    new RestartPolicy(3, 3, false)
             );
         }
 

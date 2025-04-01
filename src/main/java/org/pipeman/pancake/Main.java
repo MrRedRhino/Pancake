@@ -7,7 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import de.mkammerer.snowflakeid.SnowflakeIdGenerator;
 import io.javalin.Javalin;
 import io.javalin.json.JavalinJackson;
+import org.pipeman.pancake.addons.Platform;
 import org.pipeman.pancake.addons.Platforms;
+import org.pipeman.pancake.addons.VersionInfo;
 import org.pipeman.pancake.loaders.Loader;
 import org.pipeman.pancake.rest.FilesApi;
 import org.pipeman.pancake.rest.JobsApi;
@@ -37,7 +39,14 @@ public class Main {
 
             c.jsonMapper(new JavalinJackson(OBJECT_MAPPER, true));
             c.validation.register(Platforms.class, Platforms::fromString);
-            c.validation.register(Loader.class, Loader::valueOf);
+            c.validation.register(Loader.class, Loader::fromString);
+            c.validation.register(Platform.ContentType.class, Platform.ContentType::fromString);
+            c.validation.register(VersionInfo.class, VersionInfo::fromString);
+            /*
+            https://git.sakamoto.pl/domi/curseme/src/branch/meow/parsePack.sh
+            https://github.com/SpigotMC/XenforoResourceManagerAPI/tree/master
+            https://support.modrinth.com/en/articles/8802351-modrinth-modpack-format-mrpack
+            */
 
             c.router.apiBuilder(() -> {
                 path("api", () -> {
@@ -83,6 +92,10 @@ public class Main {
                                 delete(FilesApi::deleteFile);
                             });
                         });
+                    });
+
+                    path("loaders/{loader}", () -> {
+                        get("game-versions", ServerApi::listSupportedGameVersionsByLoader);
                     });
 
                     path("mods", () -> {

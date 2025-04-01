@@ -24,11 +24,13 @@ public class MinecraftServer {
     private static final Logger LOGGER = LoggerFactory.getLogger(MinecraftServer.class);
 
     private final long id;
-    private final String path;
-    private final String startCommand;
     private final ScheduledExecutorService executorService;
+
     private State state = State.STOPPED;
     private long startedAt;
+    private boolean shutdownIntentionally = false;
+    private ServerManager.ServerData serverData;
+    private int restarts = 0;
 
     private final Queue<ConsoleLine> terminalHistory = new LinkedList<>();
     private final AtomicInteger lineNumber = new AtomicInteger();
@@ -38,15 +40,15 @@ public class MinecraftServer {
     private ScheduledFuture<?> pingTask;
     private CompletableFuture<Void> stopFuture;
 
-    public MinecraftServer(long id, String path, String startCommand, ScheduledExecutorService executorService) {
+    public MinecraftServer(long id, ScheduledExecutorService executorService) {
         this.id = id;
-        this.path = path;
-        this.startCommand = startCommand;
         this.executorService = executorService;
     }
 
     public void start() {
         if (state != State.STOPPED) throw new IllegalArgumentException("Server not stopped");
+
+        serverData = ServerManager.getServerData(id).orElseThrow();
 
         HashMap<String, String> env = new HashMap<>(System.getenv());
         env.put("TERM", "xterm-256color");
@@ -54,17 +56,12 @@ public class MinecraftServer {
         try {
             PtyProcess ptyProcess = new PtyProcessBuilder()
                     .setEnvironment(env)
-                    .setDirectory(path)
-                    .setCommand(startCommand.split(" "))
+                    .setDirectory(serverData.path())
+                    .setCommand(serverData.startCommand().split(" "))
 //                    .setCommand(new String[]{"/bin/bash", "--login"})
+                    .setRedirectErrorStream(true)
                     .start();
 
-            ptyProcess.onExit().thenAccept(process -> {
-                int exitValue = process.exitValue();
-                setState(State.STOPPED);
-                stopFuture.complete(null);
-                LOGGER.info("Server stopped. Exit code: {}", exitValue);
-            });
             WebSocketServer.broadcast(new ServerLaunchedEventData(id));
             new Thread(() -> handleConsoleInput(ptyProcess), "Console Reader").start();
 
@@ -78,8 +75,35 @@ public class MinecraftServer {
             currentLine = new StringBuilder();
             terminalHistory.clear();
             lineNumber.set(0);
+            shutdownIntentionally = false;
 
+            stopFuture = new CompletableFuture<>();
             pingTask = executorService.scheduleWithFixedDelay(this::pingServer, 3, 3, TimeUnit.SECONDS);
+            addConsoleLine(serverData.startCommand());
+
+            ptyProcess.onExit().thenAccept(process -> {
+                        int exitCode = process.exitValue();
+                        State previousState = state;
+                        setState(State.STOPPED);
+                        stopFuture.complete(null);
+                        addConsoleLine("");
+                        addConsoleLine("Process finished with exit code " + exitCode);
+
+                        if (shutdownIntentionally) {
+                            LOGGER.info("Server stopped. Exit code: {}", exitCode);
+                        } else {
+                            LOGGER.warn("Server crashed. Exit code: {}. Restarting in 3 seconds...", exitCode);
+
+                            RestartPolicy restartPolicy = ServerManager.getServerData(id).orElseThrow().restartPolicy();
+                            if (restartPolicy.failedBootNoNetworkAccess())
+
+                                executorService.schedule(this::start, 3, TimeUnit.SECONDS);
+                        }
+                    })
+                    .exceptionally(throwable -> {
+                        LOGGER.error("An unexpected error occured after a server shut down", throwable);
+                        return null;
+                    });
         } catch (IOException e) {
             throw new RuntimeException("Failed to start server", e);
         }
@@ -89,6 +113,7 @@ public class MinecraftServer {
         try {
             ServerPing.pingServer("localhost", 25565);// TODO dynamically
             setState(State.RUNNING);
+
         } catch (Exception ignored) {
         }
     }
@@ -96,7 +121,7 @@ public class MinecraftServer {
     public CompletableFuture<Void> stop() {
         if (state != State.RUNNING) throw new IllegalStateException("Server not running");
 
-        stopFuture = new CompletableFuture<>();
+        shutdownIntentionally = true;
         setState(State.STOPPING);
         process.destroy();
 
@@ -104,8 +129,9 @@ public class MinecraftServer {
     }
 
     public void terminate() {
+        shutdownIntentionally = true;
         process.destroyForcibly();
-        state = State.STOPPED;
+        setState(State.STOPPED);
     }
 
     private void setState(State state) {
@@ -156,6 +182,7 @@ public class MinecraftServer {
     }
 
     private void afterStopCommand() {
+        shutdownIntentionally = true;
         setState(State.STOPPING);
         // TODO kill process after delay
     }
@@ -169,20 +196,24 @@ public class MinecraftServer {
             while (process.isAlive()) {
                 int read = process.inputReader().read();
                 if (read == '\n') {
-                    int thisLineNumber = lineNumber.getAndIncrement();
-                    terminalHistory.add(new ConsoleLine(currentLine.toString(), thisLineNumber));
-                    WebSocketServer.broadcastToSubscribers(new WebSocketServer.UpsertConsoleLineEventData(id, currentLine.toString(), thisLineNumber));
-
+                    addConsoleLine(currentLine.toString());
                     currentLine = new StringBuilder();
-                    while (terminalHistory.size() > Config.mcServerConsoleHistoryMaxLines()) {
-                        terminalHistory.poll();
-                    }
                 } else if (read != -1) {
                     currentLine.append((char) read);
                 }
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private void addConsoleLine(String line) {
+        int thisLineNumber = lineNumber.getAndIncrement();
+        terminalHistory.add(new ConsoleLine(line, thisLineNumber));
+        WebSocketServer.broadcastToSubscribers(new WebSocketServer.UpsertConsoleLineEventData(id, line, thisLineNumber));
+
+        while (terminalHistory.size() > Config.mcServerConsoleHistoryMaxLines()) {
+            terminalHistory.poll();
         }
     }
 

@@ -5,7 +5,7 @@ import ModrinthLogo from "@/assets/ModrinthLogo.vue";
 import {reactive, ref} from "vue";
 import axios from "axios";
 import {useConfirm, useDialog, useToast} from "primevue";
-import AddonSearchDialog from "@/views/AddonSearchDialog.vue";
+import AddonSearchDialog from "@/components/AddonSearchDialog.vue";
 import HangarLogo from "@/assets/HangarLogo.vue";
 import {servers} from "@/main.js";
 
@@ -166,6 +166,7 @@ async function installAddon(searchResult) {
 </script>
 
 <template>
+  <!--  https://primevue.org/dataview/-->
   <div class="m-2">
     <DynamicDialog></DynamicDialog>
     <ConfirmDialog></ConfirmDialog>
