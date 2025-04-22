@@ -53,6 +53,7 @@ import ModListView from "@/views/ModListView.vue";
 import PluginListView from "@/views/PluginListView.vue";
 import DatapackListView from "@/views/DatapackListView.vue";
 import {Form, FormField} from "@primevue/forms";
+import LogsView from "@/views/LogsView.vue";
 
 export const account = ref();
 export const authorized = ref();
@@ -156,6 +157,7 @@ const routes = [
             {path: 'plugins', component: PluginListView, name: 'plugins'},
             {path: 'datapacks', component: DatapackListView, name: 'datapacks'},
             {path: 'jobs', component: JobsView, name: 'jobs'},
+            {path: 'logs', component: LogsView, name: 'logs'},
         ]
     },
 ];

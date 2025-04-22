@@ -54,6 +54,11 @@ tabs.value.push({
   title: "Settings",
   route: {name: 'jobs', params: {serverId: serverId}}
 });
+
+tabs.value.push({
+  title: "Logs",
+  route: {name: 'logs', params: {serverId: serverId}}
+});
 </script>
 
 <template>

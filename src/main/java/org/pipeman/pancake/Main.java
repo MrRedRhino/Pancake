@@ -11,10 +11,7 @@ import org.pipeman.pancake.addons.Platform;
 import org.pipeman.pancake.addons.Platforms;
 import org.pipeman.pancake.addons.VersionInfo;
 import org.pipeman.pancake.loaders.Loader;
-import org.pipeman.pancake.rest.FilesApi;
-import org.pipeman.pancake.rest.JobsApi;
-import org.pipeman.pancake.rest.ServerApi;
-import org.pipeman.pancake.rest.UserApi;
+import org.pipeman.pancake.rest.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,6 +70,11 @@ public class Main {
                                     delete(JobsApi::deleteJob);
                                     patch(JobsApi::patchJob);
                                 });
+                            });
+
+                            path("logs", () -> {
+                                get(LogsApi::listLogs);
+                                get("{log-name}", LogsApi::getLogContent);
                             });
 
                             path("{type}", () -> {
