@@ -46,7 +46,7 @@ import {
     Toast,
     ToastService,
     ToggleSwitch,
-    TreeSelect
+    TreeSelect, VirtualScroller
 } from "primevue";
 import {definePreset} from "@primevue/themes";
 import ModListView from "@/views/ModListView.vue";
@@ -242,6 +242,7 @@ createApp(App)
     .component("Tabs", Tabs)
     .component("Tab", Tab)
     .component("ScrollPanel", ScrollPanel)
+    .component("VirtualScroller", VirtualScroller)
     .component("AutoComplete", AutoComplete)
     .component("ConfirmDialog", ConfirmDialog)
     .component("DynamicDialog", DynamicDialog)
